@@ -15,25 +15,42 @@ def load_data():
     if os.path.exists(INVENTORY_FILE):
         inventory_df = pd.read_csv(INVENTORY_FILE, index_col=0).to_dict(orient='index')
     else:
-        inventory_df = {
-            # 'rice': {'quantity': 50, 'unit': 'kg', 'price_per_unit': 100},
-            # 'chicken': {'quantity': 20, 'unit': 'kg', 'price_per_unit': 250},
-            'soda': {'quantity': 10, 'unit': 'bottles - 300ml', 'price_per_unit': 60}
-        }
+        inventory_df = {}
         pd.DataFrame.from_dict(inventory_df, orient='index').to_csv(INVENTORY_FILE)
 
-    if os.path.exists(MENU_FILE):
-        menu_df = pd.read_csv(MENU_FILE, index_col=0).to_dict(orient='index')
+    if os.path.exists(MENU_FILE) and os.path.getsize(MENU_FILE) > 0:
+        menu_df = pd.read_csv(MENU_FILE, index_col=0, on_bad_lines='skip').to_dict(orient='index')
+
+        for key, value in menu_df.items():
+            if isinstance(value['items'], str):
+                menu_df[key]['items'] = eval(value['items'])
+
     else:
         menu_df = {
-            'Combo 1': {'items': {'BEEF': 1, 'UGALI': 1}, 'price': 150},
-            'Combo 2': {'items': {'LIVER': 0.5, 'UGALI': 1}, 'price': 200},
-            'Combo 3': {'items': {'NDENGU': 1, 'CHAPATI': 2}, 'price': 120}
+            'Beef and Ugali': {'items': {'BEEF': 0.1, 'UNGA': 0.2}, 'price': 150},
+            'Liver and Ugali': {'items': {'LIVER': 0.1, 'UNGA': 0.2}, 'price': 200},
+            'Ndengu and 2 Chapatis': {'items': {'NDENGU': 0.2, 'CHAPATI': 2}, 'price': 120},
+            'Rice and Ndengu': {'items': {'RICE': 0.2, 'NDENGU': 0.2}, 'price': 120},
+            'Rice and Beef': {'items': {'RICE': 0.2, 'BEEF': 0.1}, 'price': 150},
+            'Matumbo and Ugali': {'items': {'MATUMBO': 0.1, 'UNGA': 0.2}, 'price': 120},
+            'Sukuma and Ugali': {'items': {'SUKUMA': 0.2, 'UNGA': 0.2}, 'price': 120},
+            'Cabbage and Ugali': {'items': {'CABBAGE': 0.2, 'UNGA': 0.2}, 'price': 120},
+            'Fish and Ugali (200)': {'items': {'FISH': 1, 'UNGA': 0.2}, 'price': 200},
+            'Fish and Ugali (250)': {'items': {'FISH': 1, 'UNGA': 0.2}, 'price': 250},
+            'Chai and Chapati': {'items': {'MILK': 0.1, 'SUGAR': 0.05, 'CHAPATI': 1}, 'price': 50},
+            'Special Chai': {'items': {'MILK': 0.25, 'SUGAR': 0.05}, 'price': 60},
+            'Normal Tea': {'items': {'MILK': 0.1, 'SUGAR': 0.05}, 'price': 30},
+            'Chapati': {'items': {'CHAPATI': 1}, 'price': 20},
+            'Two Fried Eggs': {'items': {'EGGS': 2}, 'price': 80},
+            'Fried Eggs and Ugali': {'items': {'EGGS': 2, 'UNGA': 0.2}, 'price': 130},
+            'Two Slices of Bread': {'items': {'BREAD': 2}, 'price': 20},
+            '300ml Soda': {'items': {'SODA': 1}, 'price': 60},
+            'Mineral Water': {'items': {'MINERAL WATER': 1}, 'price': 30}
         }
         pd.DataFrame.from_dict(menu_df, orient='index').to_csv(MENU_FILE)
 
     sales_df = pd.read_csv(SALES_FILE, index_col=0) if os.path.exists(SALES_FILE) else pd.DataFrame(
-        columns=['combo', 'quantity', 'total_price', 'payment_mode', 'date'])
+        columns=['menu_item', 'quantity', 'total_price', 'payment_mode', 'date'])
     expenses_df = pd.read_csv(EXPENSES_FILE, index_col=0) if os.path.exists(EXPENSES_FILE) else pd.DataFrame(
         columns=['item', 'quantity', 'total_cost', 'category', 'date'])
 
@@ -45,7 +62,7 @@ inventory = {}
 menu = {}
 sales = pd.DataFrame()
 expenses = pd.DataFrame()
-
+milk_used_for_teas = 0.0
 inventory, menu, sales, expenses = load_data()
 
 
@@ -59,42 +76,56 @@ def save_data():
 
 # Function to add a sale
 def add_sale():
-    st.subheader("Log Sale")
-    combo = st.selectbox("Select Menu Item (Combo)", options=list(menu.keys()))
-    quantity = st.number_input(f"Quantity of {combo}", min_value=1, value=1)
+    st.markdown("### Log Sale")
+    st.write("---")
+
+    # Multi-select option for menu items
+    selected_combos = st.multiselect("Select Menu Items", options=list(menu.keys()))
+
+    # Input for quantity per selected menu item
+    combo_quantities = {}
+    for combo in selected_combos:
+        quantity = st.number_input(f"Quantity of {combo}", min_value=1, value=1, key=combo)
+        combo_quantities[combo] = quantity
+
     payment_mode = st.selectbox("Payment Mode", options=['cash', 'till', 'pochi'])
     sale_date = st.date_input("Sale Date", value=datetime.date.today())
 
-    total_price = quantity * menu[combo]['price']
-    st.write(f"Total Price: {total_price}")
+    # Calculate total price for all selected items
+    total_price = sum(quantity * menu[combo]['price'] for combo, quantity in combo_quantities.items())
+    st.markdown(f"**Total Price: {total_price} KES**")
 
     if st.button("Submit Sale"):
         # Update inventory based on menu items sold
-        for item, required_quantity in menu[combo]['items'].items():
-            if inventory[item]['quantity'] < required_quantity * quantity:
-                st.error(f"Not enough {item} in stock.")
-                return
-            inventory[item]['quantity'] -= required_quantity * quantity
+        for combo, quantity in combo_quantities.items():
+            for item, required_quantity in menu[combo]['items'].items():
+                if inventory[item]['quantity'] < required_quantity * quantity:
+                    st.error(f"Not enough {item} in stock for {combo}.")
+                    return
+                inventory[item]['quantity'] -= required_quantity * quantity
 
-        # Record the sale
-        new_sale = pd.DataFrame({
-            'combo': [combo],
-            'quantity': [quantity],
-            'total_price': [total_price],
-            'payment_mode': [payment_mode],
-            'date': [sale_date]
-        })
+        # Record the sale for each selected combo
         global sales
-        sales = pd.concat([sales, new_sale], ignore_index=True)
+        for combo, quantity in combo_quantities.items():
+            new_sale = pd.DataFrame({
+                'combo': [combo],
+                'quantity': [quantity],
+                'total_price': [quantity * menu[combo]['price']],
+                'payment_mode': [payment_mode],
+                'date': [sale_date]
+            })
+            sales = pd.concat([sales, new_sale], ignore_index=True)
 
         save_data()  # Save to CSV
-        st.success(f"Sale logged for {quantity} x {combo}")
+        st.success(
+            f"Sale logged for {', '.join([f'{quantity} x {combo}' for combo, quantity in combo_quantities.items()])}")
 
 
 # Function to log an expense
 def add_expense():
     global expenses
-    st.subheader("Log Expense")
+    st.markdown("### Log an Expense")
+    st.write("---")
     category = st.selectbox("Expense Category", options=['restocking', 'bills', 'rent', 'taxes', 'other'])
 
     if category == 'restocking':
@@ -153,9 +184,9 @@ def calculate_profit_loss(date):
 
 # Function to display inventory
 def display_inventory():
-    st.subheader("Current Inventory")
+    st.markdown("### Current Inventory")
     inventory_df = pd.DataFrame.from_dict(inventory, orient='index')
-    st.dataframe(inventory_df)
+    st.dataframe(inventory_df.style.set_properties(**{'width': '150px', 'height': '50px'}))
 
 
 # Function to display menu
@@ -222,7 +253,6 @@ elif option == "View Expenses":
 elif option == "Generate Spreadsheet":
     generate_spreadsheet()
 elif option == "Daily Profit/Loss":
-    st.subheader("Calculate Daily Profit/Loss")
-    selected_date = st.date_input("Select Date", value=datetime.date.today())
-    profit_loss = calculate_profit_loss(selected_date)
-    st.write(f"Profit/Loss for {selected_date}: {profit_loss}")
+    date = st.date_input("Select Date", value=datetime.date.today())
+    profit_loss = calculate_profit_loss(date)
+    st.write(f"Profit/Loss for {date}: {profit_loss} KES")

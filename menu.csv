@@ -1,4 +1,20 @@
 ,items,price
-Combo 1,"{'BEEF': 1, 'UGALI': 1}",150
-Combo 2,"{'LIVER': 0.5, 'UGALI': 1}",200
-Combo 3,"{'NDENGU': 1, 'CHAPATI': 2}",120
+Beef and Ugali,"{'BEEF': 0.1, 'UNGA': 0.2}",150
+Liver and Ugali,"{'LIVER': 0.1, 'UNGA': 0.2}",200
+Ndengu and 2 Chapatis,"{'NDENGU': 0.2, 'CHAPATI': 2}",120
+Rice and Ndengu,"{'RICE': 0.2, 'NDENGU': 0.2}",120
+Rice and Beef,"{'RICE': 0.2, 'BEEF': 0.1}",150
+Matumbo and Ugali,"{'MATUMBO': 0.1, 'UNGA': 0.2}",120
+Sukuma and Ugali,"{'SUKUMA': 0.2, 'UNGA': 0.2}",120
+Cabbage and Ugali,"{'CABBAGE': 0.2, 'UNGA': 0.2}",120
+Fish and Ugali (200),"{'FISH': 1, 'UNGA': 0.2}",200
+Fish and Ugali (250),"{'FISH': 1, 'UNGA': 0.2}",250
+Chai and Chapati,"{'MILK': 0.1, 'SUGAR': 0.05, 'CHAPATI': 1}",50
+Special Chai,"{'MILK': 0.25, 'SUGAR': 0.05}",60
+Normal Tea,"{'MILK': 0.1, 'SUGAR': 0.05}",30
+Chapati,{'CHAPATI': 1},20
+Two Fried Eggs,{'EGGS': 2},80
+Fried Eggs and Ugali,"{'EGGS': 2, 'UNGA': 0.2}",130
+Two Slices of Bread,{'BREAD': 2},20
+300ml Soda,{'SODA': 1},60
+Mineral Water,{'MINERAL WATER': 1},30

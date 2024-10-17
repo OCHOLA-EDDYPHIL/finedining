@@ -1,15 +1,17 @@
 ,quantity,unit,price_per_unit
-soda-300ml,10,bottles,60.0
-BEEF,2,kg,400.0
-LIVER,1,kg,500.0
-SUKUMA,1,units,50.0
-COOKING OIL,1,litres,300.0
-UNGA,1,units,90.0
-SUGAR,1,kg,125.0
-MILK,1,litres,110.0
-TOMATOES,1,litres,100.0
-ONIONS,1,units,100.0
-SALT,1,kg,25.0
-NDENGU,1,kg,100.0
-CHAPATI,4,kg,100.0
-SERVIETS,1,units,95.0
+soda-300ml,10.0,bottles,60.0
+BEEF,2.0,kg,400.0
+LIVER,0.9,kg,500.0
+SUKUMA,1.0,units,50.0
+COOKING OIL,1.0,litres,300.0
+UNGA,0.4000000000000001,units,90.0
+SUGAR,0.6499999999999997,kg,125.0
+MILK,0.14999999999999988,litres,110.0
+TOMATOES,1.0,litres,100.0
+ONIONS,1.0,units,100.0
+SALT,1.0,kg,25.0
+NDENGU,0.8,kg,100.0
+CHAPATI,33.0,units,100.0
+SERVIETS,1.0,units,95.0
+EGGS,8.0,units,20.0
+FISH,6.0,units,100.0
