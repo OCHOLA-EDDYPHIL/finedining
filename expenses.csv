@@ -1,0 +1,15 @@
+,item,quantity,total_cost,category,date
+0,BEEF,2,800.0,restocking,2024-10-14
+1,LIVER,1,500.0,restocking,2024-10-14
+2,SUKUMA,1,50.0,restocking,2024-10-14
+3,COOKING OIL,1,300.0,restocking,2024-10-14
+4,UNGA,1,90.0,restocking,2024-10-14
+5,SUGAR,1,125.0,restocking,2024-10-14
+6,MILK,1,110.0,restocking,2024-10-14
+7,TOMATOES,1,100.0,restocking,2024-10-14
+8,ONIONS,1,100.0,restocking,2024-10-14
+9,SALT,1,25.0,restocking,2024-10-14
+10,NDENGU,1,100.0,restocking,2024-10-14
+11,CHAPATI,3,300.0,restocking,2024-10-14
+12,CHAPATI,1,100.0,restocking,2024-10-14
+13,SERVIETS,1,95.0,restocking,2024-10-14
