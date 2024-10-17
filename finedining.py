@@ -2,12 +2,23 @@ import streamlit as st
 import pandas as pd
 import datetime
 import os
+from openpyxl import Workbook, load_workbook
+from zipfile import BadZipFile
 
 # Define file paths for persistence
 INVENTORY_FILE = 'inventory.csv'
 MENU_FILE = 'menu.csv'
 SALES_FILE = 'sales.csv'
 EXPENSES_FILE = 'expenses.csv'
+REPORT_FILE = 'daily_report.csv'  # New report file for daily summaries
+EXCEL_REPORT_FILE = 'daily_report.xlsx'  # Excel file for daily summaries
+
+# Initialize global variables
+inventory = {}
+menu = {}
+sales = pd.DataFrame()
+expenses = pd.DataFrame()
+milk_used_for_tea = 0.0
 
 
 # Initialize inventory, menu, sales, and expenses from CSV files
@@ -20,11 +31,9 @@ def load_data():
 
     if os.path.exists(MENU_FILE) and os.path.getsize(MENU_FILE) > 0:
         menu_df = pd.read_csv(MENU_FILE, index_col=0, on_bad_lines='skip').to_dict(orient='index')
-
         for key, value in menu_df.items():
             if isinstance(value['items'], str):
                 menu_df[key]['items'] = eval(value['items'])
-
     else:
         menu_df = {
             'Beef and Ugali': {'items': {'BEEF': 0.1, 'UNGA': 0.2}, 'price': 150},
@@ -58,11 +67,6 @@ def load_data():
 
 
 # Load initial data
-inventory = {}
-menu = {}
-sales = pd.DataFrame()
-expenses = pd.DataFrame()
-milk_used_for_teas = 0.0
 inventory, menu, sales, expenses = load_data()
 
 
@@ -79,42 +83,43 @@ def add_sale():
     st.markdown("### Log Sale")
     st.write("---")
 
-    # Multi-select option for menu items
     selected_combos = st.multiselect("Select Menu Items", options=list(menu.keys()))
-
-    # Input for quantity per selected menu item
-    combo_quantities = {}
-    for combo in selected_combos:
-        quantity = st.number_input(f"Quantity of {combo}", min_value=1, value=1, key=combo)
-        combo_quantities[combo] = quantity
+    combo_quantities = {combo: st.number_input(f"Quantity of {combo}", min_value=1, value=1, key=combo)
+                        for combo in selected_combos}
 
     payment_mode = st.selectbox("Payment Mode", options=['cash', 'till', 'pochi'])
     sale_date = st.date_input("Sale Date", value=datetime.date.today())
 
-    # Calculate total price for all selected items
     total_price = sum(quantity * menu[combo]['price'] for combo, quantity in combo_quantities.items())
     st.markdown(f"**Total Price: {total_price} KES**")
 
     if st.button("Submit Sale"):
-        # Update inventory based on menu items sold
+        global milk_used_for_tea  # To modify the milk usage
+
         for combo, quantity in combo_quantities.items():
-            for item, required_quantity in menu[combo]['items'].items():
-                if inventory[item]['quantity'] < required_quantity * quantity:
-                    st.error(f"Not enough {item} in stock for {combo}.")
+            if combo == 'Chai and Chapati':
+                milk_needed = 0.1 * quantity  # 0.1 liters per cup of tea
+                if milk_used_for_tea + milk_needed > 1.0:
+                    st.error("Not enough milk prepared for tea.")
                     return
+                milk_used_for_tea += milk_needed
+
+            for item, required_quantity in menu[combo]['items'].items():
+                if item in inventory and inventory[item]['quantity'] < required_quantity * quantity:
+                    st.warning(f"Warning: Not enough {item} in stock for {combo}. Proceeding with sale.")
                 inventory[item]['quantity'] -= required_quantity * quantity
 
-        # Record the sale for each selected combo
         global sales
         for combo, quantity in combo_quantities.items():
-            new_sale = pd.DataFrame({
-                'combo': [combo],
-                'quantity': [quantity],
-                'total_price': [quantity * menu[combo]['price']],
-                'payment_mode': [payment_mode],
-                'date': [sale_date]
-            })
-            sales = pd.concat([sales, new_sale], ignore_index=True)
+            if quantity > 0:  # Only log if the quantity is positive
+                new_sale = pd.DataFrame({
+                    'menu_item': [combo],
+                    'quantity': [quantity],
+                    'total_price': [quantity * menu[combo]['price']],
+                    'payment_mode': [payment_mode],
+                    'date': [sale_date]
+                })
+                sales = pd.concat([sales, new_sale], ignore_index=True)
 
         save_data()  # Save to CSV
         st.success(
@@ -136,7 +141,7 @@ def add_expense():
                                      value=float(quantity) * 0.0)  # Ensure value is a float
         expense_date = st.date_input("Restocking Date", value=datetime.date.today())
 
-        if st.button("Submit Restocking Expense", key="restocking"):
+        if st.button("Submit Restocking Expense"):
             # Check if item is in inventory
             if item in inventory:
                 inventory[item]['quantity'] += quantity
@@ -157,11 +162,11 @@ def add_expense():
             st.success(f"Restocked {quantity} units of {item}")
 
     else:
-        item = st.text_input("Define Expense Item")
-        total_cost = st.number_input(f"Total Cost for {category.capitalize()}", min_value=0.0, format="%.2f")
+        item = st.text_input("Enter Expense Item")
+        total_cost = st.number_input("Total Cost of Expense", min_value=0.0, format="%.2f")
         expense_date = st.date_input("Expense Date", value=datetime.date.today())
 
-        if st.button(f"Submit {category.capitalize()} Expense", key=category):
+        if st.button("Submit Expense"):
             new_expense = pd.DataFrame({
                 'item': [item],
                 'quantity': [0],
@@ -172,87 +177,106 @@ def add_expense():
             expenses = pd.concat([expenses, new_expense], ignore_index=True)
 
             save_data()  # Save to CSV
-            st.success(f"{category.capitalize()} expense logged")
+            st.success(f"Logged expense for {item} of KES {total_cost:.2f}")
 
 
-# Function to calculate daily profit/loss
-def calculate_profit_loss(date):
-    total_sales = sales[sales['date'] == date]['total_price'].sum()
-    total_expenses = expenses[expenses['date'] == date]['total_cost'].sum()
-    return total_sales - total_expenses
+# Function to view sales
+def view_sales():
+    st.markdown("### View Sales")
+    st.write("---")
+    if not sales.empty:
+        st.dataframe(sales)
+    else:
+        st.warning("No sales recorded.")
 
 
-# Function to display inventory
-def display_inventory():
-    st.markdown("### Current Inventory")
+# Function to view expenses
+def view_expenses():
+    st.markdown("### View Expenses")
+    st.write("---")
+    if not expenses.empty:
+        st.dataframe(expenses)
+    else:
+        st.warning("No expenses recorded.")
+
+
+# Function to view inventory
+def view_inventory():
+    st.markdown("### View Inventory")
+    st.write("---")
     inventory_df = pd.DataFrame.from_dict(inventory, orient='index')
-    st.dataframe(inventory_df.style.set_properties(**{'width': '150px', 'height': '50px'}))
+    st.dataframe(inventory_df)
 
 
-# Function to display menu
-def display_menu():
-    st.subheader("Menu")
-    menu_df = pd.DataFrame(menu).T
-    st.dataframe(menu_df)
+# Function to generate a daily report
+def generate_daily_report():
+    st.markdown("### Generate Daily Report")
+    st.write("---")
+    report_date = st.date_input("Select Date for Report", value=datetime.date.today())
+
+    if st.button("Generate Report"):
+        daily_sales = sales[sales['date'] == str(report_date)]
+        daily_expenses = expenses[expenses['date'] == str(report_date)]
+        total_sales = daily_sales['total_price'].sum()
+        total_expenses = daily_expenses['total_cost'].sum()
+        profit = total_sales - total_expenses
+
+        report_data = {
+            'Date': [report_date],
+            'Total Sales': [total_sales],
+            'Total Expenses': [total_expenses],
+            'Profit/Loss': [profit]
+        }
+        report_df = pd.DataFrame(report_data)
+
+        # Create or load the daily report CSV
+        if os.path.exists(REPORT_FILE):
+            existing_report = pd.read_csv(REPORT_FILE)
+            report_df = pd.concat([existing_report, report_df], ignore_index=True)
+
+        report_df.to_csv(REPORT_FILE, index=False)
+        st.success("Daily report generated successfully!")
+
+        # Generate Excel report
+        if os.path.exists(EXCEL_REPORT_FILE):
+            with pd.ExcelWriter(EXCEL_REPORT_FILE, engine='openpyxl', mode='a') as writer:
+                workbook = writer.book
+                report_df.to_excel(writer, index=False, header=False, startrow=len(workbook.sheetnames) + 1)
+        else:
+            report_df.to_excel(EXCEL_REPORT_FILE, index=False)
+
+        st.success("Excel report generated successfully!")
 
 
-# Function to display sales
-def display_sales():
-    st.subheader("Sales")
-    st.dataframe(sales)
+# Function to view daily reports
+def view_daily_reports():
+    st.markdown("### View Daily Reports")
+    st.write("---")
+    if os.path.exists(REPORT_FILE):
+        reports = pd.read_csv(REPORT_FILE)
+        st.dataframe(reports)
+    else:
+        st.warning("No reports found.")
 
 
-# Function to display expenses
-def display_expenses():
-    st.subheader("Expenses")
-    st.dataframe(expenses)
+# Streamlit layout
+st.title("Restaurant Management System")
 
+menu_options = ["Add Sale", "Add Expense", "View Sales", "View Expenses", "View Inventory", "Generate Daily Report",
+                "View Daily Reports"]
+selected_menu = st.sidebar.selectbox("Select an option", menu_options)
 
-# Function to display and download spreadsheet report
-def generate_spreadsheet():
-    st.subheader("Generate Spreadsheet Report")
-    inventory_df = pd.DataFrame.from_dict(inventory, orient='index')
-
-    # Write to Excel file
-    with pd.ExcelWriter('restaurant_report.xlsx') as writer:
-        inventory_df.to_excel(writer, sheet_name='Inventory')
-        sales.to_excel(writer, sheet_name='Sales')
-        expenses.to_excel(writer, sheet_name='Expenses')
-
-    if os.path.exists('restaurant_report.xlsx'):
-        with open('restaurant_report.xlsx', 'rb') as file:
-            st.download_button(
-                label="Download Excel Report",
-                data=file,
-                file_name='restaurant_report.xlsx',
-                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-        st.success("Spreadsheet report generated and ready for download")
-
-
-# Main App
-st.title("Restaurant Inventory, Sales, and Expense Management System")
-
-st.sidebar.title("Menu")
-option = st.sidebar.selectbox("Select an option",
-                              ["View Inventory", "View Menu", "Log Sale", "Log Expense", "View Sales", "View Expenses",
-                               "Generate Spreadsheet", "Daily Profit/Loss"])
-
-if option == "View Inventory":
-    display_inventory()
-elif option == "View Menu":
-    display_menu()
-elif option == "Log Sale":
+if selected_menu == "Add Sale":
     add_sale()
-elif option == "Log Expense":
+elif selected_menu == "Add Expense":
     add_expense()
-elif option == "View Sales":
-    display_sales()
-elif option == "View Expenses":
-    display_expenses()
-elif option == "Generate Spreadsheet":
-    generate_spreadsheet()
-elif option == "Daily Profit/Loss":
-    date = st.date_input("Select Date", value=datetime.date.today())
-    profit_loss = calculate_profit_loss(date)
-    st.write(f"Profit/Loss for {date}: {profit_loss} KES")
+elif selected_menu == "View Sales":
+    view_sales()
+elif selected_menu == "View Expenses":
+    view_expenses()
+elif selected_menu == "View Inventory":
+    view_inventory()
+elif selected_menu == "Generate Daily Report":
+    generate_daily_report()
+elif selected_menu == "View Daily Reports":
+    view_daily_reports()
